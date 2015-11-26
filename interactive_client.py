@@ -9,7 +9,7 @@ while True:
 	user_input = raw_input("Enter name of a team member: ")
 	print user_input
 	s = socket.socket()
-	s.connect(("localhost",9994))	
+	s.connect(("192.168.2.1",9000))	
 	s.send(user_input)
 	l = s.recv(1024)
 	if (l and l == 'Invalid Team Member'):
@@ -30,7 +30,8 @@ while True:
 			f.write(y)
         	f.close()
                 p = subprocess.Popen(["display","Team_Member.jpg"]) 
-                time.sleep(5)
+                time.sleep(20)
                 p.kill()
 	s.shutdown(socket.SHUT_RDWR)	
 	s.close()
+

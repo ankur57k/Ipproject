@@ -4,7 +4,7 @@ import os
 
 ack = "Processed"
 s = socket.socket()
-s.bind(("localhost",9994))
+s.bind(("192.168.1.1",9000))
 s.listen(10) 
 while True:
 	sc, address = s.accept()
@@ -33,3 +33,4 @@ while True:
 	sc.shutdown(socket.SHUT_RDWR)	
 	sc.close()
 s.close()
+
