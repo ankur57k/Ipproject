@@ -9,6 +9,8 @@ import thread
 from Queue import Queue
 
 link_avail=Queue() 	#Define a variable for passing between threads
+edgestat=Queue()
+cloudstat=Queue()
 
 class InitSwitch(object):
 	def __init__ (self,str):
@@ -79,8 +81,7 @@ def flowchange(Switch):
                		msg4.match.dl_type = 0x800
                 	action = of.ofp_action_output(port = of.OFPP_NORMAL)
                 	msg4.actions.append(action)
-                	Switch.connection.send(msg4)
-			
+                	Switch.connection.send(msg4)			
 		linkhis=value
 
 def linkmonitor(str1):
@@ -89,6 +90,7 @@ def linkmonitor(str1):
 
         sum = 0
         while (1):
+		s.send('Hello')
                 result=s.recv(512)
                 if int(result) == 1:
                         sum=sum+int(result)
@@ -98,9 +100,39 @@ def linkmonitor(str1):
                                 print "Edge is down"
                 else:
                         print "Edge is up"
-                        sum = 0
-
+			sum = 0			
+			thread.start_new_thread(getEdgeStat,("Thread-edge",))
+		 	thread.start_new_thread(getCloudStat,("Thread-cloud",))
+                        while(0 == cloudstat.empty())
+				pass
+			cloudload = cloudstat.get()
+			while(0 == edgestat.empty())
+				pass
+			edgeload = edgestat.get()
+			
         s.close()
+
+def getEdgeStat(threadname,):
+	gateway_edge_ip = '192.168.4.2'
+	s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s1.connect((gateway_edge_ip,9880))	
+	s1.send("GET_")
+	l = s1.recv(1024)
+	edgestat.put(float(l))
+	s1.shutdown(socket.SHUT_RDWR)
+	s1.close()
+
+
+def getCloudStat(threadname,):
+	gateway_cloud_ip = '192.168.4.2'
+	s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s2.connect((gateway_cloud_ip,9881))	
+	s2.send("GET_")
+	l = s2.recv(1024)
+	cloudstat.put(float(l))
+	s2.shutdown(socket.SHUT_RDWR)
+	s2.close()
+
 
 def launch():
 	NewSwitch = InitSwitch("First")
