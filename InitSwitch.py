@@ -11,6 +11,7 @@ from Queue import Queue
 link_avail=Queue() 	#Define a variable for passing between threads
 edgestat=Queue()
 cloudstat=Queue()
+decision=Queue()
 
 class InitSwitch(object):
 	def __init__ (self,str):
@@ -35,54 +36,89 @@ class InitSwitch(object):
                 msg1.actions.append(action)
                 self.connection.send(msg1)
  
-              	msg2 = of.ofp_flow_mod()
-		msg2.priority = 2
-                msg2.match.dl_type = 0x800
-                msg2.match.nw_proto = 6
-		msg2.match.tp_src = 9000
-		msg2.actions.append(of.ofp_action_nw_addr.set_src("192.168.2.1"))
-		action = of.ofp_action_output(port = of.OFPP_NORMAL)
-                msg2.actions.append(action)
-		self.connection.send(msg2)
-
-                pmsg2= of.ofp_flow_mod()
-		pmsg2.priority = 2
-                pmsg2.match.dl_type = 0x800
-                pmsg2.match.nw_proto = 6
-		pmsg2.match.tp_dst = 9000
-		pmsg2.actions.append(of.ofp_action_nw_addr.set_dst("192.168.1.1"))
-		action = of.ofp_action_output(port = of.OFPP_NORMAL)
-                pmsg2.actions.append(action)
-		self.connection.send(pmsg2)
-
+              
 		print "Switch is connected now , Entering flowchange module"
                 thread.start_new_thread(flowchange , (self,))
 
 
 def flowchange(Switch):
   	print "Inside flowchange" 
-	linkhis=0 		#Save link history to capture link status changes
-	while(1):
-		value=link_avail.get()
-		if(linkhis!=value and value==1):	#Check that link is down and corresponding flows have not already been pushed
-			
-			clear = of.ofp_flow_mod(command=of.OFPFC_DELETE) 	#If link status has changed to down (from up), then delete previous flows 
-			Switch.connection.send(clear)
-			
-        	        msg3 = of.ofp_flow_mod()
-               		msg3.priority = 3
-        	        msg3.match.dl_type = 0x806
-               		action = of.ofp_action_output(port = of.OFPP_NORMAL)
-               		msg3.actions.append(action)
-               		Switch.connection.send(msg3)
+	olddecision=0	#Save decision history
 
-                	msg4 = of.ofp_flow_mod()
-                	msg4.priority = 3
-               		msg4.match.dl_type = 0x800
-                	action = of.ofp_action_output(port = of.OFPP_NORMAL)
-                	msg4.actions.append(action)
-                	Switch.connection.send(msg4)			
-		linkhis=value
+	while(True):
+		if(decision.empty()==0):	#Check that link is down and corresponding flows have not already been pushed
+			currentdecision=decision.get()
+			print "currentdecision is :",currentdecision
+			if(olddecision==0 and currentdecision==1):
+				
+				print "Clearing old entries"
+						
+				clear = of.ofp_flow_mod(command=of.OFPFC_DELETE) 	#If link status has changed to down (from up), then delete previous flows 
+				Switch.connection.send(clear)
+
+
+				print "Pushing flows to send to edge"				
+
+				pmsg = of.ofp_flow_mod()
+				pmsg.priority = 1
+				pmsg.match.dl_type = 0x806	#ARP Flows
+				action = of.ofp_action_output(port = of.OFPP_NORMAL)
+				pmsg.actions.append(action)
+				Switch.connection.send(pmsg)
+
+				pmsg1 = of.ofp_flow_mod()
+				pmsg1.priority = 1
+				pmsg1.match.dl_type = 0x800	#IP Flows
+				action = of.ofp_action_output(port = of.OFPP_NORMAL)
+				pmsg1.actions.append(action)
+				Switch.connection.send(pmsg1)
+		 
+			      	pmsg2 = of.ofp_flow_mod()
+				pmsg2.priority = 2
+				pmsg2.match.dl_type = 0x800
+				pmsg2.match.nw_proto = 6
+				pmsg2.match.tp_src = 9000
+				pmsg2.actions.append(of.ofp_action_nw_addr.set_src("192.168.2.1"))
+				action = of.ofp_action_output(port = of.OFPP_NORMAL)
+				pmsg2.actions.append(action)
+				Switch.connection.send(pmsg2)
+
+				pmsg3= of.ofp_flow_mod()
+				pmsg3.priority = 2
+				pmsg3.match.dl_type = 0x800
+				pmsg3.match.nw_proto = 6
+				pmsg3.match.tp_dst = 9000
+				pmsg3.actions.append(of.ofp_action_nw_addr.set_dst("192.168.1.1"))
+				action = of.ofp_action_output(port = of.OFPP_NORMAL)
+				pmsg3.actions.append(action)
+				Switch.connection.send(pmsg3)
+
+
+			elif(olddecision==1 and currentdecision==0):
+				
+				print "Clearing Old Entries"
+
+				clear = of.ofp_flow_mod(command=of.OFPFC_DELETE)        #If link status has changed to down (from up), then delete previous flows 
+                                Switch.connection.send(clear)
+				
+				print "Pushing flow to send to Infrastructure"
+					 
+				pmsg4 = of.ofp_flow_mod()
+				pmsg4.priority = 1
+				pmsg4.match.dl_type = 0x806	#ARP Flows
+				action = of.ofp_action_output(port = of.OFPP_NORMAL)
+				pmsg.actions.append(action)
+				Switch.connection.send(pmsg4)
+
+				pmsg5 = of.ofp_flow_mod()
+				pmsg5.priority = 1
+				pmsg5.match.dl_type = 0x800	#IP Flows
+				action = of.ofp_action_output(port = of.OFPP_NORMAL)
+				pmsg5.actions.append(action)
+				Switch.connection.send(pmsg5)
+	
+			olddecision = currentdecision	
+			
 
 def linkmonitor(str1):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -96,24 +132,28 @@ def linkmonitor(str1):
                         sum=sum+int(result)
                         print "Response not received from Edge"
                         if sum >= 3:
-                                link_avail.put(1)
+                                decision.put(0)
                                 print "Edge is down"
                 else:
                         print "Edge is up"
 			sum = 0			
 			thread.start_new_thread(getEdgeStat,("Thread-edge",))
 		 	thread.start_new_thread(getCloudStat,("Thread-cloud",))
-                        while(0 == cloudstat.empty())
+			while(edgestat.empty()==0 or cloudstat.empty()==0):
 				pass
-			cloudload = cloudstat.get()
-			while(0 == edgestat.empty())
-				pass
-			edgeload = edgestat.get()
-			
+			edgestatus=edgestat.get()
+			cloudstatus=cloudstat.get()
+			if(edgestatus < cloudstatus):
+				print "Decision to send to Edge made"
+				decision.put(1)
+			else:
+				print "Decision to sent to Infrastructure made"
+				decision.put(0)
+				
         s.close()
 
 def getEdgeStat(threadname,):
-	gateway_edge_ip = '192.168.4.2'
+	gateway_edge_ip = "192.168.4.2"
 	s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	s1.connect((gateway_edge_ip,9880))	
 	s1.send("GET_")
@@ -124,7 +164,7 @@ def getEdgeStat(threadname,):
 
 
 def getCloudStat(threadname,):
-	gateway_cloud_ip = '192.168.4.2'
+	gateway_cloud_ip = "192.168.4.2"
 	s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	s2.connect((gateway_cloud_ip,9881))	
 	s2.send("GET_")
