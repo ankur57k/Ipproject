@@ -16,6 +16,8 @@ address = "192.168.1.1"
  
 with open(os.devnull, 'w') as f:
 	while(1):
+		l = connection.recv(1024)
+		time.sleep(1)
 		# Ping edge server IP address to check availability
 		res = subprocess.call(['ping', '-c', '1','-W','1', address],stdout=f) 
 		# res = 0 if ping successful
@@ -32,5 +34,4 @@ with open(os.devnull, 'w') as f:
 		# Uncomment the print statement to print the datetime 
 	 	print datetime.datetime.utcnow()
 		# Ping the edge server at an interval of 2 seconds ( Heartbeat messages )
-		time.sleep(1)
 		

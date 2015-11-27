@@ -12,6 +12,7 @@ link_avail=Queue() 	#Define a variable for passing between threads
 edgestat=Queue()
 cloudstat=Queue()
 decision=Queue()
+edgeload=Queue()
 
 class InitSwitch(object):
 	def __init__ (self,str):
@@ -139,18 +140,28 @@ def linkmonitor(str1):
 			sum = 0			
 			thread.start_new_thread(getEdgeStat,("Thread-edge",))
 		 	thread.start_new_thread(getCloudStat,("Thread-cloud",))
-			while(edgestat.empty()==0 or cloudstat.empty()==0):
+			thread.start_new_thread(getEdgeLoad,("Thred-load",))
+			while(edgestat.empty()==0 or cloudstat.empty()==0 or edgeload.empty()==0):
 				pass
 			edgestatus=edgestat.get()
 			cloudstatus=cloudstat.get()
-			if(edgestatus < cloudstatus):
-				print "Decision to send to Edge made"
-				decision.put(1)
+			edgeld=edgeload.get()
+			arr = edgelod.split(',')
+			min_1_load = float(arr[0])
+			min_15_load = float(arr[1])
+			print float(arr[0]), float(arr[1])
+			if(min_1_load < 0.85):
+				if(edgestatus < cloudstatus):
+					print "Decision to send to Edge made"
+					decision.put(1)
+				else:
+					print "Decision to sent to Infrastructure made"
+					decision.put(0)
 			else:
-				print "Decision to sent to Infrastructure made"
 				decision.put(0)
 				
         s.close()
+
 
 def getEdgeStat(threadname,):
 	gateway_edge_ip = "192.168.4.2"
@@ -172,6 +183,16 @@ def getCloudStat(threadname,):
 	cloudstat.put(float(l))
 	s2.shutdown(socket.SHUT_RDWR)
 	s2.close()
+
+def getEdgeLoad(threadname,):
+	edge_ip = "192.168.1.1"
+	s3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s3.connect((edge_ip,9882))	
+	s3.send("GET_")
+	l = s3.recv(1024)
+	edgeload.put(l)
+	s3.shutdown(socket.SHUT_RDWR)
+	s3.close()
 
 
 def launch():
